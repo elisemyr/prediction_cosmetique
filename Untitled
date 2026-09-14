@@ -1,0 +1,28 @@
+cosmetic_prediction/
+│
+├── data/
+│   ├── raw/
+│   │   ├── beauty_data.csv           # Métadonnées (id, brand, name, category, contains_*, ingredients)
+│   │   └── beauty_data.jsonl         # Version JSON
+│   │
+│   ├── images/                       # 1000 images .jpeg, nommées {id}.jpeg
+│   │
+│   ├── processed/
+│   │   ├── dataset_clean.parquet     # Table jointe : id, chemin image, targets (contains_*, category)
+│   │   └── train_test_split.json     # Indices train/val/test (stratifiés par catégorie)
+│   │
+│   └── external/
+│
+├── scripts/
+│   ├── download_hf_dataset.py        # Téléchargement images/ + beauty_data.csv depuis HF
+│   ├── build_clean_dataset.py        # Jointure image ↔ métadonnées, gestion des valeurs manquantes
+│   └── extract_features.py           # Extraction embeddings CV + features couleur manuelles
+│
+├── notebooks/
+│   ├── 01_EDA.ipynb                  # Distribution des targets, exploration visuelle, déséquilibre de classes
+│   ├── 02_baseline_features.ipynb    # Couleurs dominantes, contraste, OCR → gradient boosting
+│   ├── 03_embeddings_cv.ipynb        # ResNet/CLIP embeddings → probing linéaire / MLP
+│   └── 04_explicabilite_shap.ipynb   # SHAP sur baseline + corrélation embeddings/attributs
+│
+├── requirements.txt
+└── README.md
