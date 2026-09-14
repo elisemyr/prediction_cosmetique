@@ -1,0 +1,41 @@
+#les environnements virtuels
+.venv/
+venv/
+env/
+
+# la data brute
+data/raw/
+data/images/
+data/processed/
+data/external/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# cache uv
+.uv/
+*.egg-info/
+
+# jupyter notebooks
+.ipynb_checkpoints/
+
+# macos files
+.DS_Store
+
+# environements variables
+.env
+.env.local
+
+# editeurs
+.vscode/
+.idea/
+*.swp
+
+# modeles
+*.pt
+*.pth
+*.h5
+models/checkpoints/
