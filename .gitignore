@@ -1,40 +1,40 @@
-#les environnements virtuels
+# Environnements virtuels
 .venv/
 venv/
 env/
 
-# la data brute
+# Données 
 data/raw/
 data/images/
 data/processed/
 data/external/
 
-# python cache
+# Cache Python
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 
-# cache uv
+# Cache uv / pip
 .uv/
 *.egg-info/
 
-# jupyter notebooks
+# Jupyter
 .ipynb_checkpoints/
 
-# macos files
+# Fichiers macOS
 .DS_Store
 
-# environements variables
+# Variables d'environnement / secrets (clé API si tu en ajoutes une un jour)
 .env
 .env.local
 
-# editeurs
+# Éditeurs
 .vscode/
 .idea/
 *.swp
 
-# modeles
+# Modèles/checkpoints si tu en sauvegardes localement
 *.pt
 *.pth
 *.h5
