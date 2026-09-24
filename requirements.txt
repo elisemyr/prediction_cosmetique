@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+pillow
+requests
+pyarrow
+shap
+torch
+torchvision
+transformers
+jupyter
