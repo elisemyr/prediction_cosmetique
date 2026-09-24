@@ -1,0 +1,202 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{array}
+\usepackage{caption}
+
+\definecolor{plum}{HTML}{7E3A4C}
+\definecolor{sage}{HTML}{6B7F5E}
+\definecolor{inksoft}{HTML}{5B5652}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=plum,
+  urlcolor=plum,
+  citecolor=plum
+}
+
+\titleformat{\section}{\normalfont\Large\bfseries\color{plum}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancyhead[L]{\small\itshape Le packaging trahit-il la formule ?}
+\fancyhead[R]{\small\thepage}
+
+\setlength{\parskip}{0.6em}
+\setlength{\parindent}{0pt}
+
+\renewcommand{\tablename}{Tableau}
+\renewcommand{\abstractname}{Résumé}
+
+\title{\Huge\bfseries Le packaging trahit-il la formule ?\\[0.3em]
+\Large\normalfont Prédiction d'attributs de composition cosmétique\\à partir d'images de packaging}
+\author{Elise Deyris\\
+\small 4\up{e} année, double diplôme CentraleSupélec × ESSEC (AIDAMS)\\
+\small \href{https://github.com/elisemyr}{github.com/elisemyr}}
+\date{24 septembre 2026}
+
+\newcommand{\up}[1]{\textsuperscript{#1}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+Ce projet examine si le packaging visuel d'un produit cosmétique permet de prédire des attributs de sa formulation : présence de parfum, de silicones, de sulfates, de parabènes ou d'alcool asséchant ; à partir d'un échantillon de 1000 produits (\emph{The Beauty API}, Hugging Face). Pour chaque attribut, quatre modèles sont comparés~: la catégorie du produit seule (référence sans image), des features visuelles simples (couleur, contraste), des embeddings CLIP, et leur combinaison. Le signal visuel s'avère marginal pour la plupart des attributs et largement redondant avec la catégorie de produit, à l'exception notable des sulfates, où le modèle combiné dépasse la référence catégorielle (AUC-ROC~0.743 contre 0.716). Une analyse SHAP révèle cependant que ce gain reste en grande partie un proxy de catégorie plutôt qu'une lecture fine et indépendante du packaging
+\end{abstract}
+
+\vspace{1em}
+\noindent\textbf{Interface interactive des résultats~:} \href{https://elisemyr.github.io/prediction_cosmetique/}{elisemyr.github.io/prediction\_cosmetique}\\
+\textbf{Code source~:} \href{https://github.com/elisemyr/prediction_cosmetique}{github.com/elisemyr/prediction_cosmetique}
+
+\section{Question de recherche et motivation}
+
+Le secteur cosmétique fait un usage marketing intensif du packaging pour signaler des propriétés du produit --- minimalisme associé à une formule ``clean'', couleurs vives associées à des produits ludiques, etc. Ce projet pose une question empirique~: \textbf{ce signal visuel est-il suffisamment systématique pour être appris par un modèle de vision, et apporte-t-il une information au-delà de ce que révèle déjà la catégorie du produit (soin de la peau, cheveux, maquillage...)~?}
+
+Cette seconde partie de la question est centrale~: un modèle pourrait obtenir un score élevé simplement en apprenant à reconnaître la \emph{forme du contenant} (un flacon de shampoing diffère visuellement d'un pot de crème) sans rien apprendre de la composition elle-même. La méthodologie de ce projet est construite spécifiquement pour distinguer ces deux cas
+
+\section{Données}
+
+\subsection{Source et pivots méthodologiques}
+
+L'objectif initial du projet était de prédire le succès commercial d'un produit cosmétique à partir de son packaging, en utilisant le catalogue Sephora. Plusieurs obstacles ont motivé un changement de source, documentés ici par souci de transparence~:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item Le dataset Kaggle \emph{Sephora Products and Skincare Reviews} ne contient aucune image ni URL d'image exploitable.
+  \item La reconstruction d'URL d'image à partir des identifiants produits a échoué (les identifiants SKU d'image ne correspondent pas aux identifiants produits du dataset).
+  \item Le contenu image des pages produit Sephora est chargé côté client en JavaScript, rendant impossible une extraction par simple requête HTTP sans recourir à un scraping actif plus invasif, écarté pour des raisons de conformité aux conditions d'utilisation du site.
+\end{itemize}
+
+Le projet s'est donc réorienté vers \textbf{The Beauty API}\footnote{\url{https://huggingface.co/datasets/thebeautyapi/beautyproducts}}, un échantillon public de 1~000 produits distribué sous licence \textbf{CC BY-NC 4.0} (usage non commercial), incluant images de packaging normalisées et données de composition (INCI). Cette source ne contenant aucune donnée de vente ou de notation, la question de recherche a été reformulée en conséquence~: de la prédiction du succès commercial vers la prédiction d'attributs de formulation.
+
+\subsection{Description du jeu de données}
+
+Le jeu de données final comprend, pour chacun des 1~000 produits~:
+\begin{itemize}[leftmargin=1.5em]
+  \item une image de packaging (JPEG, résolution variable) ;
+  \item la marque, le nom du produit et sa catégorie (\emph{skincare}, \emph{haircare}, \emph{makeup}, \emph{body/bath}, \emph{suncare}, \emph{fragrance}, \emph{other}, \emph{unknown}) ;
+  \item cinq indicateurs booléens de composition~: présence de parfum, d'alcool asséchant, de parabènes, de sulfates et de silicones.
+\end{itemize}
+
+La répartition des catégories est fortement asymétrique (56{,}4~\% de \emph{skincare}), et le Tableau~\ref{tab:targets} présente la prévalence de chaque attribut cible, avec un déséquilibre marqué pour les parabènes et les sulfates (moins de 7~\% de produits positifs).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Attribut} & \textbf{\% de produits positifs} \\
+\midrule
+Parfum & 58{,}0~\% \\
+Silicones & 24{,}9~\% \\
+Alcool asséchant & 11{,}5~\% \\
+Parabènes & 6{,}6~\% \\
+Sulfates & 5{,}2~\% \\
+\bottomrule
+\end{tabular}
+\caption{Prévalence des cinq attributs de formulation dans l'échantillon.}
+\label{tab:targets}
+\end{table}
+
+Une analyse croisée catégorie~$\times$~attribut révèle des associations fortes et attendues~: les silicones sont deux fois plus fréquents en \emph{suncare} (64~\%) et en \emph{makeup} (49~\%) qu'en \emph{skincare} (20~\%) ; les sulfates sont trois fois plus fréquents en \emph{haircare} qu'en \emph{skincare}. Ces associations catégorielles fortes sont la raison pour laquelle une référence ``catégorie seule'' est nécessaire dans la méthodologie qui suit.
+
+\section{Méthodologie}
+
+\subsection{Extraction de features visuelles}
+
+Deux familles de features sont extraites de chaque image~:
+
+\textbf{Features manuelles} --- couleurs dominante et secondaire (RGB, via \emph{k-means} sur les pixels), contraste (écart-type des niveaux de gris), luminosité et saturation moyennes, et ratio largeur/hauteur de l'image. Ces dix variables constituent une base interprétable mais grossière.
+
+\textbf{Embeddings CLIP} --- chaque image est encodée en un vecteur de 512 dimensions via le modèle pré-entraîné \texttt{openai/clip-vit-base-patch32}\footnote{\url{https://huggingface.co/openai/clip-vit-base-patch32}}. Ces embeddings capturent des caractéristiques visuelles abstraites (style, texture, composition) mais ne sont pas interprétables dimension par dimension.
+
+\subsection{Protocole de modélisation}
+
+Pour chaque attribut cible, quatre modèles sont entraînés sur un split train/test stratifié (80/20, \emph{seed}~=~42) et évalués par aire sous la courbe ROC (AUC-ROC), choisie pour sa robustesse au déséquilibre de classes~:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Catégorie seule} : régression logistique sur la catégorie encodée en variables indicatrices. Sert de \emph{référence sans aucune image}~: si un modèle image ne dépasse pas ce score, l'image n'apporte rien au-delà de la catégorie.
+  \item \textbf{Features manuelles} : \emph{gradient boosting} sur les dix variables visuelles simples.
+  \item \textbf{Embeddings CLIP seuls} : régression logistique régularisée ($C=0{,}1$) sur les 512 dimensions standardisées. La régularisation forte s'est révélée nécessaire pour limiter le surapprentissage (512 dimensions pour 800 exemples d'entraînement).
+  \item \textbf{CLIP~+~catégorie} : combinaison des embeddings et de la catégorie, pour mesurer le gain marginal de l'image une fois la catégorie connue.
+\end{enumerate}
+
+\section{Résultats}
+
+Le Tableau~\ref{tab:results} présente l'AUC-ROC des quatre modèles pour les cinq attributs.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Attribut} & \textbf{\% positifs} & \textbf{Catégorie} & \textbf{Manuelles} & \textbf{CLIP} & \textbf{CLIP+catégorie} \\
+\midrule
+Parfum & 58{,}0 & 0{,}558 & 0{,}486 & 0{,}542 & 0{,}550 \\
+Alcool asséchant & 11{,}5 & \textbf{0{,}641} & 0{,}467 & 0{,}480 & 0{,}492 \\
+Parabènes & 6{,}6 & 0{,}573 & 0{,}534 & 0{,}566 & 0{,}566 \\
+Sulfates & 5{,}2 & 0{,}716 & 0{,}699 & 0{,}725 & \textbf{0{,}743} \\
+Silicones & 24{,}9 & \textbf{0{,}644} & 0{,}468 & 0{,}578 & 0{,}611 \\
+\bottomrule
+\end{tabular}
+\caption{AUC-ROC des quatre modèles pour chaque attribut de formulation (jeu de test).}
+\label{tab:results}
+\end{table}
+
+Trois observations se dégagent~:
+
+\textbf{Le packaging ne prédit généralement pas la composition.} Pour le parfum, l'alcool asséchant et les parabènes, aucun modèle basé sur l'image ne dépasse nettement le hasard (AUC proche de 0{,}5), et aucun ne dépasse la référence catégorielle. Il s'agit d'un résultat négatif informatif~: ces propriétés chimiques ne sont, sans surprise, pas systématiquement visibles sur l'emballage.
+
+\textbf{Les sulfates constituent l'exception.} C'est le seul attribut où le modèle combiné (0{,}743) dépasse nettement la référence catégorielle (0{,}716), et où CLIP seul (0{,}725) dépasse déjà cette référence. Ce résultat est approfondi en Section~\ref{sec:shap}.
+
+\textbf{Les features manuelles sont insuffisantes seules.} Sauf pour les sulfates, où le signal est suffisamment fort pour transparaître même dans des statistiques de couleur grossières, les dix features manuelles ne dépassent jamais 0{,}54 ; confirmant la nécessité de représentations visuelles plus riches (CLIP) pour capter un signal, quand il existe.
+
+\section{Explicabilité~: le cas des sulfates}
+\label{sec:shap}
+
+L'attribut \texttt{contains\_sulfates} étant le seul cas où l'image apporte un gain mesurable, une analyse d'explicabilité plus poussée y est consacrée, combinant deux approches complémentaires ; les embeddings CLIP bruts n'étant pas interprétables terme à terme, aucune tentative de leur appliquer SHAP dimension par dimension n'a été faite.
+
+\subsection{SHAP sur les features manuelles}
+
+Une analyse SHAP (\emph{TreeExplainer}) sur le modèle à features manuelles montre que les composantes de couleur bleue (\texttt{dominant\_b}, \texttt{second\_b}) et la saturation sont les variables les plus influentes, devant le contraste et la luminosité. De façon notable, une \emph{faible} saturation (packaging pastel ou terne) est associée à une probabilité plus élevée de contenir des sulfates dans cet échantillon ; un résultat contre-intuitif par rapport à l'association courante entre couleurs vives et produits conventionnels, qui mérite d'être interprété avec prudence compte tenu de la taille de l'échantillon.
+
+\subsection{Poids de la catégorie dans le modèle combiné}
+
+Dans le modèle CLIP~+~catégorie, la magnitude moyenne des coefficients associés aux variables de catégorie (0{,}149) est environ 2{,}3~fois supérieure à celle des coefficients individuels des 512~dimensions CLIP (0{,}064). Le détail par catégorie confirme un signal cohérent avec les usages du secteur~: la catégorie \emph{haircare} pousse fortement la prédiction vers ``contient des sulfates'' (coefficient~$+0{,}319$), tandis que \emph{skincare} et \emph{suncare} poussent fortement dans le sens opposé ($-0{,}173$ et $-0{,}133$), cohérent avec le positionnement marketing ``sans sulfates'' très présent en soin de la peau.
+
+\subsection{Contrôle qualitatif}
+
+L'inspection des produits pour lesquels le modèle prédit la probabilité la plus élevée de contenir des sulfates révèle plusieurs faux positifs sur des produits capillaires affichant explicitement une mention ``sans sulfates'' sur leur emballage (par exemple un shampoing \emph{Pro Silk Salon} annonçant ``NO SILICONE'' en évidence). Ceci confirme que le modèle a largement appris une association \emph{packaging de shampoing~$\rightarrow$~sulfates probables} plutôt qu'une lecture fine distinguant, au sein d'une même catégorie, les produits qui en contiennent réellement.
+
+\textbf{Conclusion de cette section~:} le gain de performance observé sur les sulfates est réel et mesurable, mais reste largement un proxy de catégorie de produit plutôt qu'une décodification indépendante du design du packaging.
+
+\section{Limites}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item L'échantillon de 1~000 produits (contre 180~000+ dans la version complète payante de The Beauty API) limite la robustesse statistique, en particulier pour les catégories rares (\emph{fragrance}~: 3 produits)
+  \item Le style photographique est hétérogène (photos professionnelles sur fond blanc mêlées à des photos amateur), un facteur de bruit potentiel non contrôlé dans cette étude.
+  \item Les embeddings CLIP, bien que plus performants que les features manuelles, ne permettent pas une explicabilité directe~: l'analyse SHAP de ce rapport repose sur les features manuelles et les coefficients de catégorie, non sur les embeddings eux-mêmes
+  \item L'échantillon utilisé n'est pas spécifique à un marché géographique donné~; la généralisation à un marché particulier (français, par exemple) n'a pas été testée, faute de dataset équivalent disponible publiquement pour ce marché.
+\end{itemize}
+
+\section{Conclusion}
+
+Ce projet apporte une réponse nuancée à la question initiale~: le packaging cosmétique ne trahit généralement pas la formulation du produit qu'il contient, la catégorie du produit expliquant l'essentiel du signal disponible. L'exception des sulfates, mise en évidence par un protocole de comparaison à quatre niveaux, illustre l'intérêt méthodologique de systématiquement confronter un modèle de vision à une référence non visuelle avant de conclure à un signal indépendant ; une confusion entre corrélation catégorielle et véritable lecture visuelle étant, comme le montre l'analyse SHAP, un risque réel même lorsque les métriques d'ensemble semblent encourageantes.
+
+\vspace{2em}
+\noindent\rule{\textwidth}{0.4pt}
+\small
+\noindent\textit{Code source, notebooks et pipeline de reproduction disponibles sur \href{https://github.com/elisemyr}{GitHub}. Données utilisées sous licence CC~BY-NC~4.0 (The Beauty API), usage non commercial.}
+
+\end{document}
