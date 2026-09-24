@@ -4,6 +4,8 @@ Projet portfolio explorant si l'image du packaging d'un produit cosmétique perm
 
 **[Voir l'interface interactive des résultats](https://elisemyr.github.io/prediction_cosmetique/)**
 
+## Rapport complet
+[Consulter le rapport (PDF)](report/rapport.pdf)
 ---
 
 ## Question de recherche
